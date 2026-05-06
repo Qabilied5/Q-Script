@@ -460,9 +460,9 @@
   <div class="model-bar">
     <label>Model:</label>
     <select id="modelSelect">
-      <option value="Xenova/whisper-tiny">Whisper Tiny (~150 MB) - Tercepat</option>
-      <option value="Xenova/whisper-base" selected>Whisper Base (~290 MB) - Seimbang</option>
-      <option value="Xenova/whisper-small">Whisper Small (~970 MB) - Akurat</option>
+      <option value="Xenova/whisper-tiny">Q-Script Flash - Tercepat</option>
+      <option value="Xenova/whisper-base">Q-Script Balance - Seimbang</option>
+      <option value="Xenova/whisper-small" selected>Q-Script Heavy - Sangat Akurat</option>
     </select>
     <div class="bar-divider"></div>
     <label>Bahasa:</label>
@@ -563,15 +563,15 @@
         <div class="video-stats">
           <div class="stat-box">
             <span class="stat-val" id="statDuration">--:--</span>
-            <span class="stat-lbl">Durasi</span>
+            <span class="stat-lbl">Duration</span>
           </div>
           <div class="stat-box">
             <span class="stat-val" id="statFileSize">--</span>
-            <span class="stat-lbl">Ukuran</span>
+            <span class="stat-lbl">Size</span>
           </div>
           <div class="stat-box">
             <span class="stat-val" id="statChunks">--</span>
-            <span class="stat-lbl">Segmen</span>
+            <span class="stat-lbl">Segments</span>
           </div>
         </div>
       </div>
@@ -582,7 +582,7 @@
       <div class="panel-header">
         <span class="panel-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          Hasil Transkripsi
+          Transcript Result
         </span>
         <span id="langBadge" style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text-muted);background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:2px 7px;"></span>
       </div>
@@ -591,14 +591,14 @@
           <span class="placeholder-text">Hasil transkripsi Whisper akan tampil di sini...</span>
         </div>
         <div class="transcript-stats">
-          <div class="t-stat">Kata: <b id="wordCount">0</b></div>
-          <div class="t-stat">Karakter: <b id="charCount">0</b></div>
-          <div class="t-stat">Segmen: <b id="segCount">0</b></div>
+          <div class="t-stat">Word: <b id="wordCount">0</b></div>
+          <div class="t-stat">Character: <b id="charCount">0</b></div>
+          <div class="t-stat">Segment: <b id="segCount">0</b></div>
         </div>
         <div class="action-row">
           <button class="btn btn-primary" id="copyBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Salin
+            Copy
           </button>
           <button class="btn btn-success" id="exportBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -606,7 +606,7 @@
           </button>
           <button class="btn btn-danger" id="clearBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            Bersihkan
+            Clear Text
           </button>
         </div>
       </div>
