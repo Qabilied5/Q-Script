@@ -1,0 +1,1296 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoxScript - Video Transcriber</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #080c10;
+      --bg-secondary: #0d1117;
+      --bg-panel: #111820;
+      --bg-card: #161d27;
+      --border: #1e2d3d;
+      --border-glow: #00c8ff33;
+      --accent: #00c8ff;
+      --accent-dim: #00c8ff22;
+      --accent-hover: #33d5ff;
+      --success: #00e599;
+      --warning: #ffc542;
+      --danger: #ff4f6a;
+      --text-primary: #e8f0f8;
+      --text-secondary: #7a93ab;
+      --text-muted: #3d5166;
+      --interim: #ffc54266;
+      --font-mono: 'Space Mono', monospace;
+      --font-display: 'Syne', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background grid effect */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 60% 20%, #00c8ff08 0%, transparent 50%),
+                  radial-gradient(ellipse at 20% 80%, #7c3aed08 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg { width: 22px; height: 22px; }
+
+    .logo-text {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #e8f0f8, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-badge {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 2px 6px;
+      letter-spacing: 1px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    /* ===== STATUS BAR ===== */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+
+    .status-dot.idle { background: var(--text-muted); }
+    .status-dot.recording {
+      background: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+      animation: pulse-rec 1s ease-in-out infinite;
+    }
+    .status-dot.paused { background: var(--warning); }
+    .status-dot.ready { background: var(--success); }
+
+    @keyframes pulse-rec {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.8); }
+    }
+
+    .status-text { color: var(--text-secondary); }
+
+    /* ===== UPLOAD ZONE ===== */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: var(--bg-panel);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .upload-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--accent-dim), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+      border-color: var(--accent);
+      box-shadow: 0 0 30px var(--border-glow);
+    }
+
+    .upload-zone:hover::before,
+    .upload-zone.drag-over::before { opacity: 1; }
+
+    .upload-zone.has-file {
+      border-style: solid;
+      border-color: var(--success);
+      box-shadow: 0 0 20px #00e59922;
+    }
+
+    .upload-icon {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .upload-icon svg { width: 28px; height: 28px; color: var(--accent); }
+
+    .upload-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text-primary);
+    }
+
+    .upload-sub {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .upload-filename {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--success);
+      margin-top: 10px;
+      display: none;
+    }
+
+    #videoInput { display: none; }
+
+    /* ===== TOOLBAR ===== */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 14px 18px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .toolbar label {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+    }
+
+    select, input[type="range"] {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 7px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    select:focus, select:hover {
+      border-color: var(--accent);
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 80px;
+      height: 4px;
+      padding: 0;
+      background: var(--bg-card);
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 6px var(--accent);
+    }
+
+    /* ===== SEARCH BAR ===== */
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 160px;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 7px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 5px 10px 5px 30px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus { border-color: var(--accent); }
+
+    /* ===== MAIN CONTENT GRID ===== */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 700px) {
+      .main-grid { grid-template-columns: 1fr; }
+      header { flex-direction: column; align-items: flex-start; gap: 14px; }
+      .toolbar { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ===== VIDEO PANEL ===== */
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+
+    .panel-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title svg { width: 14px; height: 14px; }
+
+    .panel-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+
+    .video-wrapper {
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted);
+    }
+
+    .video-placeholder svg { width: 36px; height: 36px; }
+
+    .video-placeholder p {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      display: none;
+      border-radius: 10px;
+    }
+
+    /* ===== VIDEO STATS ===== */
+    .video-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .stat-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: block;
+    }
+
+    .stat-lbl {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-top: 2px;
+      display: block;
+    }
+
+    /* ===== TRANSCRIPT PANEL ===== */
+    .transcript-area {
+      flex: 1;
+      min-height: 250px;
+      max-height: 320px;
+      overflow-y: auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.8;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.2s;
+      word-break: break-word;
+    }
+
+    .transcript-area:focus { border-color: var(--accent); }
+
+    .transcript-area .placeholder-text {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .transcript-area .interim-text {
+      color: var(--warning);
+      opacity: 0.7;
+    }
+
+    .transcript-area .timestamp {
+      display: inline-block;
+      font-size: 0.62rem;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 1px 5px;
+      margin-right: 6px;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+
+    .transcript-area .highlight {
+      background: var(--warning);
+      color: #000;
+      border-radius: 2px;
+    }
+
+    .transcript-area::-webkit-scrollbar { width: 4px; }
+    .transcript-area::-webkit-scrollbar-track { background: transparent; }
+    .transcript-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ===== ACTION BUTTONS ===== */
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      white-space: nowrap;
+    }
+
+    .btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 20px var(--border-glow); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .btn-danger:hover { background: var(--danger); color: white; }
+
+    .btn-success {
+      background: transparent;
+      color: var(--success);
+      border-color: var(--success);
+    }
+    .btn-success:hover { background: var(--success); color: var(--bg-primary); }
+
+    /* ===== TRANSCRIPT STATS ===== */
+    .transcript-stats {
+      display: flex;
+      gap: 14px;
+      padding: 8px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .t-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
+    .t-stat span { color: var(--text-secondary); font-weight: 700; }
+
+    /* ===== EXPORT MODAL ===== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 12, 16, 0.85);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      width: min(420px, 90vw);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      animation: modal-in 0.3s ease;
+    }
+
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .modal h3 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: var(--text-primary);
+    }
+
+    .modal p {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .export-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .export-opt {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .export-opt:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 16px var(--border-glow);
+    }
+
+    .export-opt-icon {
+      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 2px 7px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+
+    .export-opt-name {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: block;
+    }
+
+    .export-opt-desc {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+      display: block;
+    }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--bg-panel);
+      border: 1px solid var(--success);
+      color: var(--success);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 12px 18px;
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+      z-index: 200;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.show { transform: none; opacity: 1; }
+    .toast.error { border-color: var(--danger); color: var(--danger); }
+    .toast svg { width: 14px; height: 14px; }
+
+    /* ===== RECORDING WAVEFORM ===== */
+    .waveform {
+      display: none;
+      align-items: center;
+      gap: 3px;
+      height: 20px;
+    }
+
+    .waveform.active { display: flex; }
+
+    .waveform-bar {
+      width: 3px;
+      background: var(--danger);
+      border-radius: 2px;
+      animation: wave 0.8s ease-in-out infinite;
+    }
+
+    .waveform-bar:nth-child(1) { animation-delay: 0s; height: 30%; }
+    .waveform-bar:nth-child(2) { animation-delay: 0.1s; height: 70%; }
+    .waveform-bar:nth-child(3) { animation-delay: 0.2s; height: 100%; }
+    .waveform-bar:nth-child(4) { animation-delay: 0.15s; height: 60%; }
+    .waveform-bar:nth-child(5) { animation-delay: 0.05s; height: 40%; }
+
+    @keyframes wave {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.3); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </div>
+      <div>
+        <span class="logo-text">VoxScript</span>
+        <span class="logo-badge">PRO</span>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="waveform" id="waveform">
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+      </div>
+      <div class="status-dot idle" id="statusDot"></div>
+      <span class="status-text" id="statusText">IDLE</span>
+    </div>
+  </header>
+
+  <!-- UPLOAD ZONE -->
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="videoInput" accept="video/*" />
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 16 12 12 8 16"/>
+        <line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+      </svg>
+    </div>
+    <p class="upload-title">Drag &amp; Drop Video Anda</p>
+    <p class="upload-sub">atau klik untuk browse &mdash; MP4, MOV, AVI, WEBM</p>
+    <p class="upload-filename" id="uploadFilename"></p>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <label>Bahasa:</label>
+      <select id="langSelect">
+        <option value="id-ID">Indonesia</option>
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="ja-JP">Jepang</option>
+        <option value="ko-KR">Korea</option>
+        <option value="zh-CN">Mandarin</option>
+        <option value="ar-SA">Arab</option>
+        <option value="fr-FR">Prancis</option>
+        <option value="de-DE">Jerman</option>
+        <option value="es-ES">Spanyol</option>
+      </select>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group">
+      <label>Ukuran Teks:</label>
+      <input type="range" id="fontSizeRange" min="11" max="18" value="13" />
+      <span id="fontSizeVal" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);">13px</span>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+        <input type="checkbox" id="timestampToggle" checked style="accent-color:var(--accent);width:13px;height:13px;" />
+        Timestamp
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-left:8px;">
+        <input type="checkbox" id="autoscrollToggle" checked style="accent-color:var(--accent);width:13px;height:13px;" />
+        Auto-scroll
+      </label>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group" style="flex:1;">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" class="search-input" id="searchInput" placeholder="Cari dalam transkrip..." />
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- VIDEO PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
+          Pemutar Video
+        </span>
+      </div>
+      <div class="panel-body">
+        <div class="video-wrapper" id="videoWrapper">
+          <div class="video-placeholder" id="videoPlaceholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <polygon points="10 8 16 12 10 16 10 8"/>
+            </svg>
+            <p>Belum ada video dipilih</p>
+          </div>
+          <video id="videoPlayer" controls></video>
+        </div>
+        <div class="video-stats">
+          <div class="stat-box">
+            <span class="stat-val" id="statDuration">--:--</span>
+            <span class="stat-lbl">Durasi</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-val" id="statFileSize">-- MB</span>
+            <span class="stat-lbl">Ukuran</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-val" id="statConfidence">--%</span>
+            <span class="stat-lbl">Akurasi</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSCRIPT PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          Hasil Transkripsi
+        </span>
+      </div>
+      <div class="panel-body">
+        <div class="transcript-area" id="transcriptArea" contenteditable="true" spellcheck="false">
+          <span class="placeholder-text">Pilih video dan mulai putar untuk memulai transkripsi otomatis...</span>
+        </div>
+        <div class="transcript-stats">
+          <div class="t-stat">Kata: <span id="wordCount">0</span></div>
+          <div class="t-stat">Karakter: <span id="charCount">0</span></div>
+          <div class="t-stat">Kalimat: <span id="sentenceCount">0</span></div>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary" id="copyBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Salin
+          </button>
+          <button class="btn btn-success" id="exportBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export
+          </button>
+          <button class="btn btn-ghost" id="clearBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+            Bersihkan
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal">
+    <h3>Export Transkripsi</h3>
+    <p>Pilih format file yang ingin diunduh</p>
+    <div class="export-options">
+      <div class="export-opt" onclick="exportAs('txt')">
+        <span class="export-opt-icon">TXT</span>
+        <span class="export-opt-name">Plain Text</span>
+        <span class="export-opt-desc">Teks biasa tanpa format</span>
+      </div>
+      <div class="export-opt" onclick="exportAs('srt')">
+        <span class="export-opt-icon">SRT</span>
+        <span class="export-opt-name">Subtitle SRT</span>
+        <span class="export-opt-desc">Format subtitle universal</span>
+      </div>
+      <div class="export-opt" onclick="exportAs('md')">
+        <span class="export-opt-icon">MD</span>
+        <span class="export-opt-name">Markdown</span>
+        <span class="export-opt-desc">Format markdown dengan header</span>
+      </div>
+      <div class="export-opt" onclick="exportAs('json')">
+        <span class="export-opt-icon">JSON</span>
+        <span class="export-opt-name">JSON Data</span>
+        <span class="export-opt-desc">Data terstruktur dengan timestamp</span>
+      </div>
+    </div>
+    <button class="btn btn-ghost" onclick="closeModal()" style="width:100%;justify-content:center;">Batal</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+  <span id="toastMsg">Berhasil!</span>
+</div>
+
+<script>
+  // ===== STATE =====
+  const state = {
+    hasVideo: false,
+    isRecognizing: false,
+    transcript: [], // { time, text, confidence }
+    interimText: '',
+    totalConfidence: 0,
+    confCount: 0,
+  };
+
+  // ===== DOM =====
+  const videoInput    = document.getElementById('videoInput');
+  const videoPlayer   = document.getElementById('videoPlayer');
+  const videoWrapper  = document.getElementById('videoWrapper');
+  const videoPlaceholder = document.getElementById('videoPlaceholder');
+  const transcriptArea= document.getElementById('transcriptArea');
+  const uploadZone    = document.getElementById('uploadZone');
+  const uploadFilename= document.getElementById('uploadFilename');
+  const statusDot     = document.getElementById('statusDot');
+  const statusText    = document.getElementById('statusText');
+  const waveform      = document.getElementById('waveform');
+  const fontSizeRange = document.getElementById('fontSizeRange');
+  const fontSizeVal   = document.getElementById('fontSizeVal');
+  const searchInput   = document.getElementById('searchInput');
+  const wordCount     = document.getElementById('wordCount');
+  const charCount     = document.getElementById('charCount');
+  const sentenceCount = document.getElementById('sentenceCount');
+  const statDuration  = document.getElementById('statDuration');
+  const statFileSize  = document.getElementById('statFileSize');
+  const statConfidence= document.getElementById('statConfidence');
+  const langSelect    = document.getElementById('langSelect');
+  const timestampToggle = document.getElementById('timestampToggle');
+  const autoscrollToggle = document.getElementById('autoscrollToggle');
+
+  // ===== SPEECH RECOGNITION =====
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+
+  function initRecognition() {
+    if (!SpeechRecognition) {
+      showToast('Browser tidak mendukung Speech Recognition. Gunakan Chrome.', true);
+      return null;
+    }
+    const rec = new SpeechRecognition();
+    rec.lang = langSelect.value;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) {
+          const text = r[0].transcript.trim();
+          const conf = Math.round(r[0].confidence * 100) || 85;
+          const time = formatTime(videoPlayer.currentTime);
+          state.transcript.push({ time, text, confidence: conf });
+          state.totalConfidence += conf;
+          state.confCount++;
+          const avgConf = Math.round(state.totalConfidence / state.confCount);
+          statConfidence.textContent = avgConf + '%';
+          state.interimText = '';
+        } else {
+          interim += r[0].transcript;
+        }
+      }
+      state.interimText = interim;
+      renderTranscript();
+    };
+
+    rec.onerror = (e) => {
+      if (e.error === 'no-speech') return;
+      if (e.error === 'aborted') return;
+      showToast('Error: ' + e.error, true);
+      setStatus('idle');
+    };
+
+    rec.onend = () => {
+      if (state.isRecognizing && !videoPlayer.paused && !videoPlayer.ended) {
+        try { rec.start(); } catch(_) {}
+      }
+    };
+
+    return rec;
+  }
+
+  // ===== RENDER TRANSCRIPT =====
+  function renderTranscript(searchTerm) {
+    const showTimestamp = timestampToggle.checked;
+    const term = searchTerm !== undefined ? searchTerm : searchInput.value.trim().toLowerCase();
+
+    if (state.transcript.length === 0 && !state.interimText) {
+      transcriptArea.innerHTML = '<span class="placeholder-text">Pilih video dan mulai putar untuk memulai transkripsi otomatis...</span>';
+      updateStats('');
+      return;
+    }
+
+    let html = '';
+    state.transcript.forEach(entry => {
+      let text = entry.text;
+      if (term && text.toLowerCase().includes(term)) {
+        const re = new RegExp(`(${escapeRegex(term)})`, 'gi');
+        text = text.replace(re, '<mark class="highlight">$1</mark>');
+      }
+      if (showTimestamp) {
+        html += `<span class="timestamp">${entry.time}</span>${text} `;
+      } else {
+        html += text + ' ';
+      }
+    });
+
+    if (state.interimText) {
+      html += `<span class="interim-text">${state.interimText}</span>`;
+    }
+
+    transcriptArea.innerHTML = html;
+
+    if (autoscrollToggle.checked) {
+      transcriptArea.scrollTop = transcriptArea.scrollHeight;
+    }
+
+    const plainText = state.transcript.map(e => e.text).join(' ');
+    updateStats(plainText);
+  }
+
+  function updateStats(text) {
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const chars = text.length;
+    const sentences = text.trim() ? text.split(/[.!?]+/).filter(s => s.trim()).length : 0;
+    wordCount.textContent = words;
+    charCount.textContent = chars;
+    sentenceCount.textContent = sentences;
+  }
+
+  // ===== UPLOAD =====
+  uploadZone.addEventListener('click', () => videoInput.click());
+
+  videoInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) loadVideo(file);
+  });
+
+  uploadZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadZone.classList.add('drag-over');
+  });
+
+  uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('drag-over');
+  });
+
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('video/')) {
+      loadVideo(file);
+    } else {
+      showToast('File bukan video yang valid!', true);
+    }
+  });
+
+  function loadVideo(file) {
+    const url = URL.createObjectURL(file);
+    videoPlayer.src = url;
+    videoPlaceholder.style.display = 'none';
+    videoPlayer.style.display = 'block';
+    uploadZone.classList.add('has-file');
+    uploadFilename.textContent = file.name;
+    uploadFilename.style.display = 'block';
+    statFileSize.textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    state.hasVideo = true;
+    setStatus('ready');
+    showToast('Video berhasil dimuat!');
+
+    videoPlayer.onloadedmetadata = () => {
+      statDuration.textContent = formatTime(videoPlayer.duration);
+    };
+  }
+
+  // ===== PLAY/PAUSE =====
+  videoPlayer.onplay = () => {
+    if (!state.hasVideo) return;
+    recognition = initRecognition();
+    if (!recognition) return;
+    state.isRecognizing = true;
+    try { recognition.start(); } catch(_) {}
+    setStatus('recording');
+  };
+
+  videoPlayer.onpause = () => {
+    state.isRecognizing = false;
+    if (recognition) {
+      try { recognition.stop(); } catch(_) {}
+    }
+    setStatus(state.hasVideo ? 'ready' : 'idle');
+  };
+
+  videoPlayer.onended = () => {
+    state.isRecognizing = false;
+    if (recognition) {
+      try { recognition.stop(); } catch(_) {}
+    }
+    setStatus('ready');
+  };
+
+  // ===== STATUS =====
+  function setStatus(s) {
+    statusDot.className = 'status-dot ' + s;
+    const labels = { idle: 'IDLE', recording: 'RECORDING', paused: 'PAUSED', ready: 'SIAP' };
+    statusText.textContent = labels[s] || s.toUpperCase();
+    if (s === 'recording') {
+      waveform.classList.add('active');
+    } else {
+      waveform.classList.remove('active');
+    }
+  }
+
+  // ===== FONT SIZE =====
+  fontSizeRange.addEventListener('input', function() {
+    const val = this.value;
+    transcriptArea.style.fontSize = val + 'px';
+    fontSizeVal.textContent = val + 'px';
+  });
+
+  // ===== SEARCH =====
+  searchInput.addEventListener('input', () => {
+    renderTranscript(searchInput.value.trim().toLowerCase());
+  });
+
+  // ===== COPY =====
+  document.getElementById('copyBtn').onclick = () => {
+    const text = state.transcript.map(e => e.text).join(' ');
+    if (!text) { showToast('Belum ada teks untuk disalin!', true); return; }
+    navigator.clipboard.writeText(text).then(() => showToast('Teks berhasil disalin!'));
+  };
+
+  // ===== CLEAR =====
+  document.getElementById('clearBtn').onclick = () => {
+    if (!state.transcript.length) return;
+    if (confirm('Hapus semua hasil transkripsi?')) {
+      state.transcript = [];
+      state.interimText = '';
+      state.totalConfidence = 0;
+      state.confCount = 0;
+      statConfidence.textContent = '--%';
+      renderTranscript();
+      showToast('Transkripsi dibersihkan.');
+    }
+  };
+
+  // ===== EXPORT =====
+  document.getElementById('exportBtn').onclick = () => {
+    if (!state.transcript.length) { showToast('Belum ada teks untuk diekspor!', true); return; }
+    document.getElementById('exportModal').classList.add('open');
+  };
+
+  function closeModal() {
+    document.getElementById('exportModal').classList.remove('open');
+  }
+
+  document.getElementById('exportModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  function exportAs(format) {
+    closeModal();
+    const entries = state.transcript;
+    const filename = 'voxscript_transcript';
+    let content = '';
+    let mimeType = 'text/plain';
+    let ext = format;
+
+    if (format === 'txt') {
+      content = entries.map(e => e.text).join('\n');
+    } else if (format === 'srt') {
+      content = entries.map((e, i) => {
+        const start = secondsToSRT(timeToSeconds(e.time));
+        const end = secondsToSRT(timeToSeconds(e.time) + 3);
+        return `${i+1}\n${start} --> ${end}\n${e.text}\n`;
+      }).join('\n');
+    } else if (format === 'md') {
+      content = `# Transkripsi VoxScript\n\n**Tanggal:** ${new Date().toLocaleDateString('id-ID')}\n\n---\n\n`;
+      content += entries.map(e => `**[${e.time}]** ${e.text}`).join('\n\n');
+    } else if (format === 'json') {
+      mimeType = 'application/json';
+      content = JSON.stringify({ meta: { date: new Date().toISOString(), lang: langSelect.value }, transcript: entries }, null, 2);
+    }
+
+    const blob = new Blob([content], { type: mimeType + ';charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}.${ext}`;
+    link.click();
+    showToast('File berhasil diunduh!');
+  }
+
+  // ===== HELPERS =====
+  function formatTime(secs) {
+    if (isNaN(secs)) return '00:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function timeToSeconds(timeStr) {
+    const parts = timeStr.split(':').map(Number);
+    return parts[0] * 60 + parts[1];
+  }
+
+  function secondsToSRT(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')},000`;
+  }
+
+  function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  let toastTimer;
+  function showToast(msg, isError = false) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    toast.className = 'toast' + (isError ? ' error' : '') + ' show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+</script>
+</body>
+</html>
