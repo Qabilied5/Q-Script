@@ -1,0 +1,1275 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoxScript - Whisper WASM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #080c10;
+      --bg-secondary: #0d1117;
+      --bg-panel: #111820;
+      --bg-card: #161d27;
+      --border: #1e2d3d;
+      --border-glow: #00c8ff33;
+      --accent: #00c8ff;
+      --accent-dim: #00c8ff22;
+      --accent-hover: #33d5ff;
+      --success: #00e599;
+      --warning: #ffc542;
+      --danger: #ff4f6a;
+      --purple: #a78bfa;
+      --text-primary: #e8f0f8;
+      --text-secondary: #7a93ab;
+      --text-muted: #3d5166;
+      --font-mono: 'Space Mono', monospace;
+      --font-display: 'Syne', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.2;
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background:
+        radial-gradient(ellipse at 60% 20%, #00c8ff09 0%, transparent 50%),
+        radial-gradient(ellipse at 20% 80%, #7c3aed09 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .app-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-icon svg { width: 22px; height: 22px; }
+    .logo-text {
+      font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #e8f0f8, var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .logo-badge {
+      font-family: var(--font-mono); font-size: 0.6rem;
+      background: var(--accent-dim); color: var(--accent);
+      border: 1px solid var(--accent); border-radius: 4px;
+      padding: 2px 6px; letter-spacing: 1px;
+      margin-left: 4px; vertical-align: middle;
+    }
+    .engine-badge {
+      font-family: var(--font-mono); font-size: 0.6rem;
+      background: rgba(167,139,250,0.12); color: var(--purple);
+      border: 1px solid var(--purple); border-radius: 4px;
+      padding: 2px 6px; letter-spacing: 1px;
+      margin-left: 4px; vertical-align: middle;
+    }
+    .status-bar {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 0.75rem;
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text-muted); transition: background 0.3s; flex-shrink: 0;
+    }
+    .status-dot.idle { background: var(--text-muted); }
+    .status-dot.loading { background: var(--warning); box-shadow: 0 0 8px var(--warning); animation: pulse-rec 1s ease-in-out infinite; }
+    .status-dot.processing { background: var(--purple); box-shadow: 0 0 8px var(--purple); animation: pulse-rec 0.7s ease-in-out infinite; }
+    .status-dot.ready { background: var(--success); }
+    .status-dot.done { background: var(--accent); }
+    @keyframes pulse-rec {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.7); }
+    }
+    .status-text { color: var(--text-secondary); }
+
+    /* ===== UPLOAD ZONE ===== */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px; padding: 36px 24px;
+      text-align: center; cursor: pointer;
+      transition: all 0.3s ease;
+      background: var(--bg-panel);
+      position: relative; overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .upload-zone::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, var(--accent-dim), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      box-shadow: 0 0 30px var(--border-glow);
+    }
+    .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
+    .upload-zone.has-file {
+      border-style: solid; border-color: var(--success);
+      box-shadow: 0 0 20px #00e59922;
+    }
+    .upload-icon {
+      width: 52px; height: 52px; margin: 0 auto 16px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    }
+    .upload-icon svg { width: 28px; height: 28px; color: var(--accent); }
+    .upload-title { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+    .upload-sub { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); }
+    .upload-filename {
+      font-family: var(--font-mono); font-size: 0.78rem;
+      color: var(--success); margin-top: 10px; display: none;
+    }
+    #videoInput { display: none; }
+
+    /* ===== MODEL SELECTOR PANEL ===== */
+    .model-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+    }
+    .model-panel-title {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+    .model-cards {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .model-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .model-card:hover { border-color: var(--accent); }
+    .model-card.active {
+      border-color: var(--purple);
+      background: rgba(167,139,250,0.1);
+      box-shadow: 0 0 12px rgba(167,139,250,0.2);
+    }
+    .model-card-name {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .model-card.active .model-card-name { color: var(--purple); }
+    .model-card-info {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ===== TOOLBAR ===== */
+    .toolbar {
+      display: flex; flex-wrap: wrap;
+      gap: 10px; align-items: center;
+      margin-bottom: 20px;
+      padding: 14px 18px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .toolbar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .toolbar-divider { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; }
+    .toolbar label {
+      font-family: var(--font-mono);
+      font-size: 0.68rem; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap;
+    }
+    select, input[type="range"] {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-primary); border-radius: 7px;
+      font-family: var(--font-mono); font-size: 0.72rem;
+      padding: 5px 10px; cursor: pointer;
+      transition: border-color 0.2s; outline: none;
+    }
+    select:focus, select:hover { border-color: var(--accent); }
+    input[type="range"] {
+      -webkit-appearance: none; width: 80px; height: 4px;
+      padding: 0; background: var(--bg-card); border-radius: 2px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px;
+      border-radius: 50%; background: var(--accent);
+      cursor: pointer; box-shadow: 0 0 6px var(--accent);
+    }
+    .search-wrap { position: relative; flex: 1; min-width: 160px; }
+    .search-wrap svg {
+      position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+      width: 14px; height: 14px; color: var(--text-muted); pointer-events: none;
+    }
+    .search-input {
+      width: 100%; background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-primary); border-radius: 7px;
+      font-family: var(--font-mono); font-size: 0.72rem;
+      padding: 5px 10px 5px 30px; outline: none; transition: border-color 0.2s;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus { border-color: var(--accent); }
+
+    /* ===== MAIN GRID ===== */
+    .main-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    @media (max-width: 700px) {
+      .main-grid { grid-template-columns: 1fr; }
+      header { flex-direction: column; align-items: flex-start; gap: 14px; }
+      .toolbar { flex-direction: column; align-items: flex-start; }
+      .model-panel { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ===== PANELS ===== */
+    .panel {
+      background: var(--bg-panel); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+    .panel-title {
+      font-size: 0.8rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--text-secondary);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-title svg { width: 14px; height: 14px; }
+    .panel-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+
+    .video-wrapper {
+      background: #000; border-radius: 10px; overflow: hidden;
+      aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center;
+    }
+    .video-placeholder {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 10px; color: var(--text-muted);
+    }
+    .video-placeholder svg { width: 36px; height: 36px; }
+    .video-placeholder p { font-family: var(--font-mono); font-size: 0.7rem; }
+    video { width: 100%; height: 100%; display: none; border-radius: 10px; }
+
+    /* ===== VIDEO STATS ===== */
+    .video-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 8px; margin-top: 14px;
+    }
+    .stat-box {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; text-align: center;
+    }
+    .stat-val {
+      font-family: var(--font-mono); font-size: 1rem;
+      font-weight: 700; color: var(--accent); display: block;
+    }
+    .stat-lbl {
+      font-size: 0.62rem; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.6px;
+      margin-top: 2px; display: block;
+    }
+
+    /* ===== TRANSCRIBE BUTTON ===== */
+    .transcribe-section {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .btn-transcribe {
+      width: 100%;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, var(--purple), var(--accent));
+      color: var(--bg-primary);
+      border: none;
+      border-radius: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.25s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-transcribe:hover:not(:disabled) {
+      box-shadow: 0 0 24px rgba(167,139,250,0.4);
+      transform: translateY(-1px);
+    }
+    .btn-transcribe:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-transcribe svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+    /* ===== PROGRESS BAR ===== */
+    .progress-container {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .progress-container.visible { display: flex; }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+    .progress-label span { color: var(--text-secondary); }
+    .progress-track {
+      width: 100%;
+      height: 4px;
+      background: var(--bg-card);
+      border-radius: 2px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--purple), var(--accent));
+      transition: width 0.3s ease;
+      width: 0%;
+      position: relative;
+    }
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 30px; height: 100%;
+      background: rgba(255,255,255,0.3);
+      animation: shimmer 1.2s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0% { opacity: 0; }
+      50% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* ===== TRANSCRIPT PANEL ===== */
+    .transcript-area {
+      flex: 1; min-height: 250px; max-height: 320px;
+      overflow-y: auto; background: var(--bg-card);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; font-family: var(--font-mono);
+      font-size: 0.8rem; line-height: 1.8;
+      color: var(--text-primary); outline: none;
+      transition: border-color 0.2s; word-break: break-word;
+    }
+    .transcript-area:focus { border-color: var(--accent); }
+    .transcript-area .placeholder-text { color: var(--text-muted); font-style: italic; }
+    .transcript-area .timestamp {
+      display: inline-block; font-size: 0.62rem;
+      color: var(--purple); background: rgba(167,139,250,0.1);
+      border: 1px solid var(--purple); border-radius: 4px;
+      padding: 1px 5px; margin-right: 6px; font-weight: 700; vertical-align: middle;
+    }
+    .transcript-area .highlight {
+      background: var(--warning); color: #000; border-radius: 2px;
+    }
+    .transcript-area::-webkit-scrollbar { width: 4px; }
+    .transcript-area::-webkit-scrollbar-track { background: transparent; }
+    .transcript-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ===== TRANSCRIPT STATS ===== */
+    .transcript-stats {
+      display: flex; gap: 14px;
+      padding: 8px 14px; background: var(--bg-card);
+      border: 1px solid var(--border); border-radius: 8px; margin-top: 10px;
+    }
+    .t-stat {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted);
+    }
+    .t-stat span { color: var(--text-secondary); font-weight: 700; }
+
+    /* ===== ACTION BUTTONS ===== */
+    .action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 8px; border: 1px solid transparent;
+      font-family: var(--font-mono); font-size: 0.72rem;
+      font-weight: 700; cursor: pointer; transition: all 0.2s;
+      text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap;
+    }
+    .btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .btn-primary { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 20px var(--border-glow); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-success { background: transparent; color: var(--success); border-color: var(--success); }
+    .btn-success:hover { background: var(--success); color: var(--bg-primary); }
+
+    /* ===== EXPORT MODAL ===== */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(8, 12, 16, 0.87);
+      backdrop-filter: blur(6px);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--bg-panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px;
+      width: min(420px, 90vw);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      animation: modal-in 0.3s ease;
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to { opacity: 1; transform: none; }
+    }
+    .modal h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
+    .modal p {
+      font-family: var(--font-mono); font-size: 0.72rem;
+      color: var(--text-muted); margin-bottom: 20px;
+    }
+    .export-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .export-opt {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; cursor: pointer;
+      transition: all 0.2s; text-align: left;
+    }
+    .export-opt:hover { border-color: var(--accent); box-shadow: 0 0 16px var(--border-glow); }
+    .export-opt-icon {
+      font-size: 0.65rem; font-family: var(--font-mono); font-weight: 700;
+      color: var(--accent); background: var(--accent-dim);
+      border: 1px solid var(--accent); border-radius: 4px;
+      padding: 2px 7px; display: inline-block; margin-bottom: 8px;
+    }
+    .export-opt-name { font-size: 0.85rem; font-weight: 700; display: block; }
+    .export-opt-desc {
+      font-family: var(--font-mono); font-size: 0.65rem;
+      color: var(--text-muted); margin-top: 3px; display: block;
+    }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed; bottom: 28px; right: 28px;
+      background: var(--bg-panel); border: 1px solid var(--success);
+      color: var(--success); font-family: var(--font-mono);
+      font-size: 0.75rem; padding: 12px 18px; border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+      z-index: 200; transform: translateY(80px); opacity: 0;
+      transition: all 0.3s ease;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .toast.show { transform: none; opacity: 1; }
+    .toast.error { border-color: var(--danger); color: var(--danger); }
+    .toast svg { width: 14px; height: 14px; }
+
+    /* ===== WAVEFORM ===== */
+    .waveform { display: none; align-items: center; gap: 3px; height: 20px; }
+    .waveform.active { display: flex; }
+    .waveform-bar {
+      width: 3px; background: var(--purple);
+      border-radius: 2px; animation: wave 0.8s ease-in-out infinite;
+    }
+    .waveform-bar:nth-child(1) { animation-delay: 0s; height: 30%; }
+    .waveform-bar:nth-child(2) { animation-delay: 0.1s; height: 70%; }
+    .waveform-bar:nth-child(3) { animation-delay: 0.2s; height: 100%; }
+    .waveform-bar:nth-child(4) { animation-delay: 0.15s; height: 60%; }
+    .waveform-bar:nth-child(5) { animation-delay: 0.05s; height: 40%; }
+    @keyframes wave {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.3); }
+    }
+
+    /* ===== INFO NOTICE ===== */
+    .info-notice {
+      background: rgba(167,139,250,0.08);
+      border: 1px solid rgba(167,139,250,0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--purple);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+    }
+    .info-notice svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
+  </style>
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </div>
+      <div>
+        <span class="logo-text">VoxScript</span>
+        <span class="logo-badge">PRO</span>
+        <span class="engine-badge">WHISPER WASM</span>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="waveform" id="waveform">
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+      </div>
+      <div class="status-dot idle" id="statusDot"></div>
+      <span class="status-text" id="statusText">IDLE</span>
+    </div>
+  </header>
+
+  <!-- INFO NOTICE -->
+  <div class="info-notice">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    Whisper berjalan 100% di browser via WebAssembly. Model diunduh sekali, lalu tersimpan di cache. Download model pertama: tiny ~75MB, base ~145MB, small ~466MB.
+  </div>
+
+  <!-- UPLOAD ZONE -->
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="videoInput" accept="video/*,audio/*" />
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="16 16 12 12 8 16"/>
+        <line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+      </svg>
+    </div>
+    <p class="upload-title">Drag and Drop Video atau Audio</p>
+    <p class="upload-sub">Klik untuk browse &mdash; MP4, MOV, AVI, WEBM, MP3, WAV, M4A</p>
+    <p class="upload-filename" id="uploadFilename"></p>
+  </div>
+
+  <!-- MODEL SELECTOR -->
+  <div class="model-panel">
+    <span class="model-panel-title">Pilih Model Whisper:</span>
+    <div class="model-cards">
+      <div class="model-card active" data-model="Xenova/whisper-tiny" onclick="selectModel(this)">
+        <div class="model-card-name">Tiny</div>
+        <div class="model-card-info">~75MB / Cepat</div>
+      </div>
+      <div class="model-card" data-model="Xenova/whisper-base" onclick="selectModel(this)">
+        <div class="model-card-name">Base</div>
+        <div class="model-card-info">~145MB / Seimbang</div>
+      </div>
+      <div class="model-card" data-model="Xenova/whisper-small" onclick="selectModel(this)">
+        <div class="model-card-name">Small</div>
+        <div class="model-card-info">~466MB / Akurat</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <label>Bahasa:</label>
+      <select id="langSelect">
+        <option value="id">Indonesia</option>
+        <option value="en">English</option>
+        <option value="ja">Jepang</option>
+        <option value="ko">Korea</option>
+        <option value="zh">Mandarin</option>
+        <option value="ar">Arab</option>
+        <option value="fr">Prancis</option>
+        <option value="de">Jerman</option>
+        <option value="es">Spanyol</option>
+        <option value="auto">Auto-detect</option>
+      </select>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group">
+      <label>Task:</label>
+      <select id="taskSelect">
+        <option value="transcribe">Transkripsi</option>
+        <option value="translate">Translate ke EN</option>
+      </select>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group">
+      <label>Ukuran Teks:</label>
+      <input type="range" id="fontSizeRange" min="11" max="18" value="13" />
+      <span id="fontSizeVal" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);">13px</span>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+        <input type="checkbox" id="timestampToggle" checked style="accent-color:var(--accent);width:13px;height:13px;" />
+        Timestamp
+      </label>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group" style="flex:1;">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" class="search-input" id="searchInput" placeholder="Cari dalam transkrip..." />
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- VIDEO PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="23 7 16 12 23 17 23 7"/>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
+          Pemutar Media
+        </span>
+      </div>
+      <div class="panel-body">
+        <div class="video-wrapper" id="videoWrapper">
+          <div class="video-placeholder" id="videoPlaceholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <polygon points="10 8 16 12 10 16 10 8"/>
+            </svg>
+            <p>Belum ada file dipilih</p>
+          </div>
+          <video id="videoPlayer" controls></video>
+        </div>
+        <div class="video-stats">
+          <div class="stat-box">
+            <span class="stat-val" id="statDuration">--:--</span>
+            <span class="stat-lbl">Durasi</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-val" id="statFileSize">-- MB</span>
+            <span class="stat-lbl">Ukuran</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-val" id="statSegments">0</span>
+            <span class="stat-lbl">Segmen</span>
+          </div>
+        </div>
+
+        <!-- TRANSCRIBE BUTTON + PROGRESS -->
+        <div class="transcribe-section">
+          <button class="btn-transcribe" id="transcribeBtn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <span id="transcrибeBtnText">Pilih File Dulu</span>
+          </button>
+          <div class="progress-container" id="progressContainer">
+            <div class="progress-label">
+              <span id="progressLabel">Memuat model...</span>
+              <span id="progressPct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSCRIPT PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          Hasil Transkripsi
+        </span>
+      </div>
+      <div class="panel-body">
+        <div class="transcript-area" id="transcriptArea" contenteditable="true" spellcheck="false">
+          <span class="placeholder-text">Hasil transkripsi Whisper akan muncul di sini setelah proses selesai...</span>
+        </div>
+        <div class="transcript-stats">
+          <div class="t-stat">Kata: <span id="wordCount">0</span></div>
+          <div class="t-stat">Karakter: <span id="charCount">0</span></div>
+          <div class="t-stat">Kalimat: <span id="sentenceCount">0</span></div>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary" id="copyBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Salin
+          </button>
+          <button class="btn btn-success" id="exportBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export
+          </button>
+          <button class="btn btn-ghost" id="clearBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+            Hapus
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal">
+    <h3>Export Transkripsi</h3>
+    <p>Pilih format file yang ingin diunduh</p>
+    <div class="export-options">
+      <div class="export-opt" onclick="exportAs('txt')">
+        <span class="export-opt-icon">TXT</span>
+        <span class="export-opt-name">Plain Text</span>
+        <span class="export-opt-desc">Teks bersih tanpa format</span>
+      </div>
+      <div class="export-opt" onclick="exportAs('srt')">
+        <span class="export-opt-icon">SRT</span>
+        <span class="export-opt-name">Subtitle SRT</span>
+        <span class="export-opt-desc">Format subtitle universal</span>
+      </div>
+      <div class="export-opt" onclick="exportAs('md')">
+        <span class="export-opt-icon">MD</span>
+        <span class="export-opt-name">Markdown</span>
+        <span class="export-opt-desc">Format markdown dengan header</span>
+      </div>
+      <div class="export-opt" onclick="exportAs('json')">
+        <span class="export-opt-icon">JSON</span>
+        <span class="export-opt-name">JSON Data</span>
+        <span class="export-opt-desc">Data lengkap + timestamp</span>
+      </div>
+    </div>
+    <button class="btn btn-ghost" onclick="closeModal()" style="width:100%;justify-content:center;">Batal</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+  <span id="toastMsg">Berhasil!</span>
+</div>
+
+<!-- WHISPER WEB WORKER (inline as Blob) -->
+<script type="module">
+  // ===== LOAD TRANSFORMERS.JS via CDN =====
+  // Worker code is embedded as a string to create a Blob URL
+  const WORKER_CODE = `
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
+
+    env.allowLocalModels = false;
+    env.useBrowserCache = true;
+
+    let transcriber = null;
+
+    self.onmessage = async (e) => {
+      const { type, payload } = e.data;
+
+      if (type === 'LOAD_MODEL') {
+        try {
+          self.postMessage({ type: 'STATUS', payload: { label: 'Mengunduh model Whisper...', pct: 0 } });
+          transcriber = await pipeline('automatic-speech-recognition', payload.model, {
+            quantized: true,
+            progress_callback: (p) => {
+              if (p.status === 'downloading') {
+                const pct = p.total ? Math.round((p.loaded / p.total) * 100) : 0;
+                self.postMessage({ type: 'STATUS', payload: { label: 'Mengunduh model: ' + (p.file || ''), pct } });
+              } else if (p.status === 'loading') {
+                self.postMessage({ type: 'STATUS', payload: { label: 'Memuat model ke memori...', pct: 95 } });
+              }
+            }
+          });
+          self.postMessage({ type: 'MODEL_READY' });
+        } catch(err) {
+          self.postMessage({ type: 'ERROR', payload: err.message });
+        }
+      }
+
+      if (type === 'TRANSCRIBE') {
+        if (!transcriber) {
+          self.postMessage({ type: 'ERROR', payload: 'Model belum dimuat.' });
+          return;
+        }
+        try {
+          self.postMessage({ type: 'STATUS', payload: { label: 'Menginisialisasi inferensi...', pct: 0 } });
+
+          const opts = {
+            task: payload.task,
+            language: payload.language === 'auto' ? undefined : payload.language,
+            return_timestamps: true,
+            chunk_length_s: 30,
+            stride_length_s: 5,
+            callback_function: (beams) => {
+              const partial = beams[0]?.output_token_ids ? '...' : '';
+              self.postMessage({ type: 'PARTIAL', payload: partial });
+            },
+            chunk_callback: (chunk) => {
+              self.postMessage({ type: 'CHUNK_DONE', payload: Math.min(chunk.timestamp[0] / payload.duration * 100, 99) });
+            }
+          };
+
+          const result = await transcriber(payload.audio, opts);
+          self.postMessage({ type: 'DONE', payload: result });
+        } catch(err) {
+          self.postMessage({ type: 'ERROR', payload: err.message });
+        }
+      }
+    };
+  `;
+
+  // Create worker from blob
+  const workerBlob = new Blob([WORKER_CODE], { type: 'application/javascript' });
+  const workerURL = URL.createObjectURL(workerBlob);
+  const worker = new Worker(workerURL, { type: 'module' });
+
+  // ===== STATE =====
+  const state = {
+    hasFile: false,
+    isProcessing: false,
+    modelLoaded: false,
+    selectedModel: 'Xenova/whisper-tiny',
+    transcript: [],
+    currentFile: null,
+    audioDuration: 0,
+  };
+
+  // ===== DOM =====
+  const videoInput     = document.getElementById('videoInput');
+  const videoPlayer    = document.getElementById('videoPlayer');
+  const videoPlaceholder = document.getElementById('videoPlaceholder');
+  const transcriptArea = document.getElementById('transcriptArea');
+  const uploadZone     = document.getElementById('uploadZone');
+  const uploadFilename = document.getElementById('uploadFilename');
+  const statusDot      = document.getElementById('statusDot');
+  const statusText     = document.getElementById('statusText');
+  const waveform       = document.getElementById('waveform');
+  const fontSizeRange  = document.getElementById('fontSizeRange');
+  const fontSizeVal    = document.getElementById('fontSizeVal');
+  const searchInput    = document.getElementById('searchInput');
+  const wordCount      = document.getElementById('wordCount');
+  const charCount      = document.getElementById('charCount');
+  const sentenceCount  = document.getElementById('sentenceCount');
+  const statDuration   = document.getElementById('statDuration');
+  const statFileSize   = document.getElementById('statFileSize');
+  const statSegments   = document.getElementById('statSegments');
+  const langSelect     = document.getElementById('langSelect');
+  const taskSelect     = document.getElementById('taskSelect');
+  const timestampToggle= document.getElementById('timestampToggle');
+  const transcribeBtn  = document.getElementById('transcribeBtn');
+  const transcrибeBtnText = document.getElementById('transcrибeBtnText');
+  const progressContainer = document.getElementById('progressContainer');
+  const progressLabel  = document.getElementById('progressLabel');
+  const progressPct    = document.getElementById('progressPct');
+  const progressFill   = document.getElementById('progressFill');
+
+  // ===== WORKER MESSAGES =====
+  worker.onmessage = (e) => {
+    const { type, payload } = e.data;
+
+    if (type === 'STATUS') {
+      setProgress(payload.label, payload.pct);
+    }
+    if (type === 'MODEL_READY') {
+      state.modelLoaded = true;
+      setStatus('ready');
+      progressContainer.classList.remove('visible');
+      transcrибeBtnText.textContent = 'Mulai Transkripsi';
+      transcribeBtn.disabled = !state.hasFile;
+      showToast('Model Whisper siap digunakan!');
+      waveform.classList.remove('active');
+    }
+    if (type === 'CHUNK_DONE') {
+      setProgress('Memproses audio...', Math.round(payload));
+    }
+    if (type === 'DONE') {
+      handleTranscriptionDone(payload);
+    }
+    if (type === 'ERROR') {
+      showToast('Error: ' + payload, true);
+      setStatus('ready');
+      state.isProcessing = false;
+      progressContainer.classList.remove('visible');
+      transcribeBtn.disabled = false;
+      transcrибeBtnText.textContent = 'Mulai Transkripsi';
+      waveform.classList.remove('active');
+    }
+  };
+
+  function handleTranscriptionDone(result) {
+    state.isProcessing = false;
+    const chunks = result.chunks || [];
+    state.transcript = chunks.map(c => ({
+      time: c.timestamp ? formatTime(c.timestamp[0]) : '00:00',
+      timeEnd: c.timestamp ? formatTime(c.timestamp[1] || c.timestamp[0]) : '00:00',
+      timeStartSec: c.timestamp ? c.timestamp[0] : 0,
+      timeEndSec: c.timestamp ? (c.timestamp[1] || c.timestamp[0]) : 0,
+      text: c.text.trim()
+    }));
+    // If no chunks, use full text
+    if (state.transcript.length === 0 && result.text) {
+      state.transcript = [{ time: '00:00', timeEnd: formatTime(state.audioDuration), timeStartSec: 0, timeEndSec: state.audioDuration, text: result.text.trim() }];
+    }
+    statSegments.textContent = state.transcript.length;
+    renderTranscript();
+    setStatus('done');
+    progressContainer.classList.remove('visible');
+    transcribeBtn.disabled = false;
+    transcrибeBtnText.textContent = 'Transkripsi Ulang';
+    waveform.classList.remove('active');
+    showToast('Transkripsi selesai! ' + state.transcript.length + ' segmen.');
+  }
+
+  // ===== MODEL SELECTION =====
+  window.selectModel = (el) => {
+    document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    state.selectedModel = el.dataset.model;
+    state.modelLoaded = false;
+    transcrибeBtnText.textContent = state.hasFile ? 'Muat Model + Transkripsi' : 'Pilih File Dulu';
+  };
+
+  // ===== UPLOAD =====
+  uploadZone.addEventListener('click', () => videoInput.click());
+  videoInput.addEventListener('change', function() {
+    if (this.files[0]) loadMedia(this.files[0]);
+  });
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && (file.type.startsWith('video/') || file.type.startsWith('audio/'))) {
+      loadMedia(file);
+    } else {
+      showToast('File tidak valid! Upload video atau audio.', true);
+    }
+  });
+
+  function loadMedia(file) {
+    state.currentFile = file;
+    state.hasFile = true;
+    const url = URL.createObjectURL(file);
+    videoPlayer.src = url;
+    videoPlaceholder.style.display = 'none';
+    videoPlayer.style.display = 'block';
+    uploadZone.classList.add('has-file');
+    uploadFilename.textContent = file.name;
+    uploadFilename.style.display = 'block';
+    statFileSize.textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    transcribeBtn.disabled = false;
+    transcrибeBtnText.textContent = state.modelLoaded ? 'Mulai Transkripsi' : 'Muat Model + Transkripsi';
+    setStatus('ready');
+    showToast('File berhasil dimuat!');
+    videoPlayer.onloadedmetadata = () => {
+      state.audioDuration = videoPlayer.duration;
+      statDuration.textContent = formatTime(videoPlayer.duration);
+    };
+  }
+
+  // ===== TRANSCRIBE BUTTON =====
+  transcribeBtn.addEventListener('click', async () => {
+    if (!state.hasFile || state.isProcessing) return;
+    state.isProcessing = true;
+    transcribeBtn.disabled = true;
+    transcrибeBtnText.textContent = 'Memproses...';
+    progressContainer.classList.add('visible');
+    waveform.classList.add('active');
+    setStatus('processing');
+
+    // Extract audio as Float32Array at 16kHz
+    try {
+      setProgress('Mengekstrak audio dari file...', 5);
+      const audioData = await extractAudio(state.currentFile);
+
+      if (!state.modelLoaded) {
+        setStatus('loading');
+        setProgress('Memuat model Whisper...', 0);
+        worker.postMessage({ type: 'LOAD_MODEL', payload: { model: state.selectedModel } });
+        // Wait for model, then transcribe - store audio for later
+        pendingAudio = { audio: audioData, duration: state.audioDuration };
+      } else {
+        setProgress('Mengirim audio ke Whisper...', 10);
+        worker.postMessage({
+          type: 'TRANSCRIBE',
+          payload: {
+            audio: audioData,
+            language: langSelect.value,
+            task: taskSelect.value,
+            duration: state.audioDuration
+          }
+        });
+      }
+    } catch(err) {
+      showToast('Gagal ekstrak audio: ' + err.message, true);
+      state.isProcessing = false;
+      transcribeBtn.disabled = false;
+      transcrибeBtnText.textContent = 'Mulai Transkripsi';
+      progressContainer.classList.remove('visible');
+      waveform.classList.remove('active');
+    }
+  });
+
+  let pendingAudio = null;
+
+  // Intercept MODEL_READY to also send pending audio
+  const origOnMessage = worker.onmessage;
+  worker.onmessage = (e) => {
+    origOnMessage(e);
+    if (e.data.type === 'MODEL_READY' && pendingAudio) {
+      const pa = pendingAudio;
+      pendingAudio = null;
+      setProgress('Menjalankan inferensi Whisper...', 10);
+      worker.postMessage({
+        type: 'TRANSCRIBE',
+        payload: {
+          audio: pa.audio,
+          language: langSelect.value,
+          task: taskSelect.value,
+          duration: pa.duration
+        }
+      });
+    }
+  };
+
+  // ===== AUDIO EXTRACTION =====
+  async function extractAudio(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    // Mix down to mono
+    const nChannels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+    const mono = new Float32Array(length);
+    for (let ch = 0; ch < nChannels; ch++) {
+      const channel = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        mono[i] += channel[i] / nChannels;
+      }
+    }
+    await audioCtx.close();
+    return mono;
+  }
+
+  // ===== RENDER TRANSCRIPT =====
+  function renderTranscript(term) {
+    const showTs = timestampToggle.checked;
+    const q = term !== undefined ? term : searchInput.value.trim().toLowerCase();
+    if (!state.transcript.length) {
+      transcriptArea.innerHTML = '<span class="placeholder-text">Hasil transkripsi Whisper akan muncul di sini setelah proses selesai...</span>';
+      updateStats('');
+      return;
+    }
+    let html = '';
+    state.transcript.forEach(entry => {
+      let text = entry.text;
+      if (q && text.toLowerCase().includes(q)) {
+        const re = new RegExp('(' + escapeRegex(q) + ')', 'gi');
+        text = text.replace(re, '<mark class="highlight">$1</mark>');
+      }
+      if (showTs) {
+        html += `<span class="timestamp">${entry.time}</span>${text} `;
+      } else {
+        html += text + ' ';
+      }
+    });
+    transcriptArea.innerHTML = html;
+    transcriptArea.scrollTop = transcriptArea.scrollHeight;
+    updateStats(state.transcript.map(e => e.text).join(' '));
+  }
+
+  function updateStats(text) {
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    wordCount.textContent = words;
+    charCount.textContent = text.length;
+    sentenceCount.textContent = text.trim() ? text.split(/[.!?]+/).filter(s => s.trim()).length : 0;
+  }
+
+  // ===== CONTROLS =====
+  fontSizeRange.addEventListener('input', function() {
+    transcriptArea.style.fontSize = this.value + 'px';
+    fontSizeVal.textContent = this.value + 'px';
+  });
+  searchInput.addEventListener('input', () => renderTranscript(searchInput.value.trim().toLowerCase()));
+  timestampToggle.addEventListener('change', () => renderTranscript());
+
+  document.getElementById('copyBtn').onclick = () => {
+    const text = state.transcript.map(e => e.text).join(' ');
+    if (!text) { showToast('Belum ada teks!', true); return; }
+    navigator.clipboard.writeText(text).then(() => showToast('Teks berhasil disalin!'));
+  };
+
+  document.getElementById('clearBtn').onclick = () => {
+    if (!state.transcript.length) return;
+    if (confirm('Hapus semua hasil transkripsi?')) {
+      state.transcript = [];
+      statSegments.textContent = '0';
+      renderTranscript();
+      showToast('Transkripsi dibersihkan.');
+    }
+  };
+
+  document.getElementById('exportBtn').onclick = () => {
+    if (!state.transcript.length) { showToast('Belum ada teks!', true); return; }
+    document.getElementById('exportModal').classList.add('open');
+  };
+
+  window.closeModal = () => document.getElementById('exportModal').classList.remove('open');
+  document.getElementById('exportModal').addEventListener('click', e => { if (e.target.id === 'exportModal') closeModal(); });
+
+  window.exportAs = (fmt) => {
+    closeModal();
+    const entries = state.transcript;
+    const name = 'voxscript_whisper';
+    let content = '', mime = 'text/plain', ext = fmt;
+    if (fmt === 'txt') {
+      content = entries.map(e => e.text).join('\n');
+    } else if (fmt === 'srt') {
+      content = entries.map((e, i) => {
+        return `${i+1}\n${secondsToSRT(e.timeStartSec)} --> ${secondsToSRT(e.timeEndSec)}\n${e.text}\n`;
+      }).join('\n');
+    } else if (fmt === 'md') {
+      content = `# Transkripsi VoxScript Whisper\n\n**Tanggal:** ${new Date().toLocaleDateString('id-ID')}\n**Model:** ${state.selectedModel}\n**Bahasa:** ${langSelect.value}\n\n---\n\n`;
+      content += entries.map(e => `**[${e.time} - ${e.timeEnd}]** ${e.text}`).join('\n\n');
+    } else if (fmt === 'json') {
+      mime = 'application/json';
+      content = JSON.stringify({ meta: { date: new Date().toISOString(), model: state.selectedModel, lang: langSelect.value, task: taskSelect.value }, transcript: entries }, null, 2);
+    }
+    const blob = new Blob([content], { type: mime + ';charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}.${ext}`;
+    a.click();
+    showToast('File berhasil diunduh!');
+  };
+
+  // ===== HELPERS =====
+  function setStatus(s) {
+    statusDot.className = 'status-dot ' + s;
+    const labels = { idle: 'IDLE', loading: 'LOADING MODEL', processing: 'PROCESSING', ready: 'SIAP', done: 'SELESAI' };
+    statusText.textContent = labels[s] || s.toUpperCase();
+  }
+
+  function setProgress(label, pct) {
+    progressLabel.textContent = label;
+    progressPct.textContent = Math.round(pct) + '%';
+    progressFill.style.width = pct + '%';
+  }
+
+  function formatTime(secs) {
+    if (!secs && secs !== 0) return '00:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function secondsToSRT(s) {
+    if (!s) s = 0;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    const ms = Math.round((s % 1) * 1000);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  }
+
+  function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  let toastTimer;
+  function showToast(msg, isErr = false) {
+    const t = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    t.className = 'toast' + (isErr ? ' error' : '') + ' show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+</script>
+</body>
+</html>
